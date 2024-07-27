@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banker's Algorithm</title>
+<style>
+/* Your CSS code here */
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+#inputs, #output {
+    margin-top: 20px;
+}
+
+input[type="number"], button {
+    margin: 5px;
+    padding: 8px;
+    width: 100px;
+    box-sizing: border-box;
+}
+
+button {
+    padding: 8px 20px;
+}
+
+.input-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.input-group label {
+    width: 120px;
+    margin-right: 10px;
+    text-align: right;
+}
+
+.table-container {
+    margin-top: 20px;
+}
+
+table.matrix {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table.matrix th, table.matrix td {
+    border: 1px solid #dddddd;
+    text-align: left;
+    padding: 8px;
+}
+
+table.matrix tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+
+</style>
+</head>
+<body>
+<div class="container">
+    <div id="inputs">
+        <h2>Banker's Algorithm</h2>
+        <h3>Enter Number of Processes and Resources</h3>
+        <label for="numProcesses">Number of Processes:</label>
+        <input type="number" id="numProcesses">
+        <label for="numResources">Number of Resources:</label>
+        <input type="number" id="numResources">
+        <button onclick="start()">Start</button>
+    </div>
+    <div id="output" style="display: none;"></div>
+</div>
+
+<script>
+// Your JavaScript code here
+let numProcesses, numResources;
+let allocationMatrix = [];
+let maxMatrix = [];
+let availableResources = [];
+
+function start() {
+    numProcesses = parseInt(document.getElementById("numProcesses").value);
+    numResources = parseInt(document.getElementById("numResources").value);
+
+    // Display input fields for allocation matrix
+    let allocationInputs = "";
+    for (let i = 0; i < numProcesses; i++) {
+        allocationInputs += `<div>Process ${i}: `;
+        for (let j = 0; j < numResources; j++) {
+            allocationInputs += `<input type="number" id="alloc${i}${j}" placeholder="R${j}">`;
+        }
+        allocationInputs += "</div>";
+    }
+
+    document.getElementById("inputs").innerHTML = `
+        <h2>Enter Allocation Matrix</h2>
+        ${allocationInputs}
+        <button onclick="getAllocationMatrix()">Next</button>
+    `;
+}
+
+function getAllocationMatrix() {
+    for (let i = 0; i < numProcesses; i++) {
+        allocationMatrix[i] = [];
+        for (let j = 0; j < numResources; j++) {
+            allocationMatrix[i][j] = parseInt(document.getElementById(`alloc${i}${j}`).value);
+        }
+    }
+
+    // Display input fields for maximum requirement matrix
+    let maxInputs = "";
+    for (let i = 0; i < numProcesses; i++) {
+        maxInputs += `<div>Process ${i}: `;
+        for (let j = 0; j < numResources; j++) {
+            maxInputs += `<input type="number" id="max${i}${j}" placeholder="R${j}">`;
+        }
+        maxInputs += "</div>";
+    }
+
+    document.getElementById("inputs").innerHTML = `
+        <h2>Enter Maximum Requirement Matrix</h2>
+        ${maxInputs}
+        <button onclick="getMaxMatrix()">Next</button>
+    `;
+} 
+
+
+function getMaxMatrix() {
+    for (let i = 0; i < numProcesses; i++) {
+        maxMatrix[i] = [];
+        for (let j = 0; j < numResources; j++) {
+            maxMatrix[i][j] = parseInt(document.getElementById(`max${i}${j}`).value);
+        }
+    }
+
+    // Display input fields for available resources
+    let availableInputs = "";
+    for (let j = 0; j < numResources; j++) {
+        availableInputs += `<input type="number" id="avail${j}" placeholder="R${j}">`;
+    }
+
+    document.getElementById("inputs").innerHTML = `
+        <h2>Enter Available Resources</h2>
+        ${availableInputs}
+        <button onclick="getAvailableResources()">Next</button>
+    `;
+}
+
+function getAvailableResources() {
+    for (let j = 0; j < numResources; j++) {
+        availableResources[j] = parseInt(document.getElementById(`avail${j}`).value);
+    }
+
+    // Perform Banker's Algorithm calculation
+    const result = bankerAlgorithm();
+
+    // Display result
+    let output = "<h2>Banker's Algorithm Result</h2>";
+    // Display need matrix
+    output += "<h3>Need Matrix:</h3>";
+    output += "<table class='matrix'>";
+    output += "<tr><th>Process</th>";
+    for (let j = 0; j < numResources; j++) {
+        output += `<th>Resource ${j}</th>`;
+    }
+    output += "</tr>";
+    for (let i = 0; i < numProcesses; i++) {
+        output += `<tr><td>Process ${i}</td>`;
+        for (let j = 0; j < numResources; j++) {
+            output += `<td>${maxMatrix[i][j] - allocationMatrix[i][j]}</td>`;
+        }
+        output += "</tr>";
+    }
+    output += "</table>";
+
+    // Display whether the system is in a safe state and the safe sequence if applicable
+    if (result.safe) {
+        output += "<p>The system is in a safe state.</p>";
+        output += `<p>Safe sequence: `;
+        for (let i = 0; i < result.sequence.length; i++) {
+            output += `Process ${result.sequence[i]}`;
+            if (i < result.sequence.length - 1) {
+                output += " -> ";
+            }
+        }
+        output += "</p>";
+    } else {
+        output += "<p>The system is not in a safe state. Deadlock detected.</p>";
+    }
+    document.getElementById("output").innerHTML = output;
+    document.getElementById("output").style.display = "block";
+}
+
+function bankerAlgorithm() {
+    // Copy the allocation matrix and available resources to avoid modifying the original arrays
+    const work = availableResources.slice();
+    const finish = new Array(numProcesses).fill(false);
+    const sequence = [];
+
+    let need = [];
+    for (let i = 0; i < numProcesses; i++) {
+        need[i] = [];
+        for (let j = 0; j < numResources; j++) {
+            need[i][j] = maxMatrix[i][j] - allocationMatrix[i][j];
+        }
+    }
+
+    let completed = 0;
+    while (completed < numProcesses) {
+        let found = false;
+        for (let i = 0; i < numProcesses; i++) {
+            if (!finish[i]) {
+                let canFinish = true;
+                for (let j = 0; j < numResources; j++) {
+                    if (need[i][j] > work[j]) {
+                        canFinish = false;
+                        break;
+                    }
+                }
+                if (canFinish) {
+                    for (let j = 0; j < numResources; j++) {
+                        work[j] += allocationMatrix[i][j];
+                    }
+                    finish[i] = true;
+                    sequence.push(i);
+                    completed++;
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            break; // Deadlock detected
+        }
+    }
+
+    return {
+        safe: completed === numProcesses,
+        sequence: completed === numProcesses ? sequence : []
+    };
+}
+</script>
+
+</body>
+</html>
